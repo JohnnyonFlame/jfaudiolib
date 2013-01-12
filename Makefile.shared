@@ -1,7 +1,7 @@
-JFAUDIOLIB_HAVE_SDL=0
-JFAUDIOLIB_HAVE_ALSA=0
+JFAUDIOLIB_HAVE_SDL=1
+JFAUDIOLIB_HAVE_ALSA=1
 JFAUDIOLIB_HAVE_FLUIDSYNTH=0
-JFAUDIOLIB_HAVE_VORBIS=0
+JFAUDIOLIB_HAVE_VORBIS=1
 JFAUDIOLIB_USE_SDLMIXER=0
 
 JFAUDIOLIB=libjfaudiolib.a
@@ -16,11 +16,18 @@ else
  endif
  ifeq (yes,$(shell pkg-config --exists sdl && echo yes))
   JFAUDIOLIB_HAVE_SDL=1
-  JFAUDIOLIB_LDFLAGS+= $(shell pkg-config --libs sdl)
+  JFAUDIOLIB_LDFLAGS+= $(shell pkg-config --libs sdl) -lWildMidi
  endif
- ifeq (yes,$(shell pkg-config --exists alsa && echo yes))
-  JFAUDIOLIB_HAVE_ALSA=1
-  JFAUDIOLIB_LDFLAGS+= $(shell pkg-config --libs alsa)
+ ifeq (yes,$(shell pkg-config --exists SDL_mixer && echo yes))
+  ifeq (1,$(JFAUDIOLIB_USE_SDLMIXER))
+   JFAUDIOLIB_LDFLAGS+= $(shell pkg-config --libs SDL_mixer)
+  endif
+ endif
+ ifneq ($(CROSS_COMPILE),mipsel-linux-)
+  ifeq (yes,$(shell pkg-config --exists alsa && echo yes))
+   JFAUDIOLIB_HAVE_ALSA=1
+   JFAUDIOLIB_LDFLAGS+= $(shell pkg-config --libs alsa)
+  endif
  endif
  ifeq (yes,$(shell pkg-config --exists fluidsynth && echo yes))
   JFAUDIOLIB_HAVE_FLUIDSYNTH=1

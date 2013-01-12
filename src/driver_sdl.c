@@ -164,6 +164,8 @@ int SDLDrv_PCM_Init(int * mixrate, int * numchannels, int * samplebits, void * i
     inited = SDL_WasInit(SDL_INIT_EVERYTHING);
     //fprintf(stderr, "inited = %x\n", inited);
 
+    printf("Initz\n");
+
     if (inited == 0) {
         // nothing was initialised
         err = SDL_Init(SDL_INIT_AUDIO);
@@ -174,6 +176,8 @@ int SDLDrv_PCM_Init(int * mixrate, int * numchannels, int * samplebits, void * i
         StartedSDLInit |= SDL_INIT_AUDIO;
         //fprintf(stderr, "called SDL_InitSubSystem\n");
     }
+    
+    //Sound_Init();
 
     if (err < 0) {
         ErrorCode = SDLErr_InitSubSystem;
@@ -188,7 +192,8 @@ int SDLDrv_PCM_Init(int * mixrate, int * numchannels, int * samplebits, void * i
     spec.freq = *mixrate;
     spec.format = (*samplebits == 8) ? AUDIO_U8 : AUDIO_S16SYS;
     spec.channels = *numchannels;
-    spec.samples = 512;
+    //spec.samples = 1024 * ((*mixrate * 2)/16000);
+    spec.samples = 2048;
     spec.callback = fillData;
     spec.userdata = 0;
 

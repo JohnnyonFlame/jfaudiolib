@@ -79,6 +79,9 @@ void  MV_StopRecord( void );
 int   MV_StartDemandFeedPlayback( void ( *function )( char **ptr, unsigned int *length ),
          int rate, int pitchoffset, int vol, int left, int right,
          int priority, unsigned int callbackval );
+int   MV_StartDemandFeedPlayback16( void ( *function )( char **ptr, unsigned int *length ),
+         int rate, int pitchoffset, int vol, int left, int right,
+         int priority, unsigned int callbackval );
 int   MV_PlayRaw( char *ptr, unsigned int length,
          unsigned rate, int pitchoffset, int vol, int left,
          int right, int priority, unsigned int callbackval );

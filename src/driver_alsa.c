@@ -26,6 +26,7 @@
 #include "driver_alsa.h"
 #include <pthread.h>
 #include <asoundlib.h>
+#include <alsa/seq.h>
 #include <unistd.h>
 #include <math.h>
 

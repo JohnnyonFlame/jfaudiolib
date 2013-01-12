@@ -122,6 +122,7 @@ static struct {
         SDLDrv_PCM_StopPlayback,
         SDLDrv_PCM_Lock,
         SDLDrv_PCM_Unlock,
+        #ifndef USE_SDLMIXER
         SDLDrv_CD_Init,
         SDLDrv_CD_Shutdown,
         SDLDrv_CD_Play,
@@ -129,6 +130,9 @@ static struct {
         SDLDrv_CD_Pause,
         SDLDrv_CD_IsPlaying,
         SDLDrv_CD_SetVolume,
+        #else
+        UNSUPPORTED_CD,
+				#endif
         UNSUPPORTED_MIDI,
     },
     #else

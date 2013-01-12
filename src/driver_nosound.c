@@ -37,6 +37,7 @@ const char *NoSoundDrv_ErrorString( int ErrorNumber )
 
 int NoSoundDrv_PCM_Init(int * mixrate, int * numchannels, int * samplebits, void * initdata)
 {
+	printf("nosound\n");
 	return 0;
 }
 

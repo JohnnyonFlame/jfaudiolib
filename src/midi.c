@@ -1268,6 +1268,7 @@ void MIDI_SetMidiFuncs
    Stops playback of the currently playing song.
 ---------------------------------------------------------------------*/
 
+#ifndef USE_SDLMIXER
 void MIDI_StopSong
    (
    void
@@ -1302,6 +1303,7 @@ void MIDI_StopSong
       _MIDI_TotalMeasures = 0;
       }
    }
+#endif
 
 
 /*---------------------------------------------------------------------

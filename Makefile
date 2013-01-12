@@ -3,15 +3,17 @@
 DXROOT ?= $(HOME)/sdks/directx/dx7
 
 ifeq (0,$(RELEASE))
- OPTLEVEL=-O0
+ OPTLEVEL=-O0 -g
 else
- OPTLEVEL=-O2
+ OPTLEVEL=-W -Wall -Wimplicit -Wno-char-subscripts -Wno-unused -O2 -pipe \
+	-fomit-frame-pointer -ffunction-sections -ffast-math -fsingle-precision-constant -G0 -mbranch-likely \
+	-fno-pic -funsigned-char -fno-strict-aliasing -DNO_GCC_BUILTINS 
 endif
 
 DXROOT ?= $(HOME)/sdks/directx/dx7
 
-CC=gcc
-CFLAGS=-g $(OPTLEVEL) -Wall
+CC=$(CROSS_COMPILE)gcc
+CFLAGS=$(OPTLEVEL) -Wall
 CPPFLAGS=-Iinclude -Isrc
 
 SOURCES=src/drivers.c \
@@ -39,6 +41,7 @@ ifneq (,$(findstring MINGW,$(shell uname -s)))
 else
  ifeq (1,$(JFAUDIOLIB_HAVE_SDL))
   CPPFLAGS+= -DHAVE_SDL $(shell pkg-config --cflags sdl)
+  CPPFLAGS+= -DUSE_WILDMIDI
   ifeq (1,$(JFAUDIOLIB_USE_SDLMIXER))
    CPPFLAGS+= -DUSE_SDLMIXER
    SOURCES+= src/driver_sdlmixer.c
@@ -47,8 +50,8 @@ else
   endif
  endif
  ifeq (1,$(JFAUDIOLIB_HAVE_ALSA))
-  CPPFLAGS+= -DHAVE_ALSA $(shell pkg-config --cflags alsa)
-  SOURCES+= src/driver_alsa.c
+   CPPFLAGS+= -DHAVE_ALSA $(shell pkg-config --cflags alsa)
+   SOURCES+= src/driver_alsa.c
  endif
  ifeq (1,$(JFAUDIOLIB_HAVE_FLUIDSYNTH))
   CPPFLAGS+= -DHAVE_FLUIDSYNTH $(shell pkg-config --cflags fluidsynth)
@@ -62,7 +65,7 @@ $(JFAUDIOLIB): $(OBJECTS)
 	ar cr $@ $^
 
 $(OBJECTS): %.o: %.c
-	$(CC) -c $(CPPFLAGS) $(CFLAGS) $< -o $@
+	$(CC) -c -flto $(CPPFLAGS) $(CFLAGS) $< -o $@
  
 .PHONY: clean
 clean:

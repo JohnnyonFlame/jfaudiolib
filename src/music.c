@@ -36,6 +36,27 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #include "midi.h"
 #include "ll_man.h"
 
+#ifdef USE_SDLMIXER
+#include <SDL/SDL_mixer.h>
+#include "errno.h"
+#include <unistd.h>
+#include <fcntl.h>
+#endif
+
+#ifdef USE_WILDMIDI
+#include <wildmidi_lib.h>
+
+int WILD_Initialized=0;
+unsigned char *MUS_Buffer;
+int MUS_Handle = 0;
+
+void *midi_ptr = NULL;
+struct _WM_Info * wm_info = NULL;
+
+#define WMSamples 4096
+#define WMSampleSize sizeof(MUS_Buffer)
+#endif
+
 #define TRUE  ( 1 == 1 )
 #define FALSE ( !TRUE )
 
@@ -43,6 +64,13 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #define max(x,y) ((x) > (y) ? (x) : (y))
 
 int MUSIC_ErrorCode = MUSIC_Ok;
+
+#ifdef USE_SDLMIXER
+unsigned char *song_rw = NULL;
+Mix_Music *music;
+int p_music = 0;
+int volume_m = 128;
+#endif
 
 static midifuncs MUSIC_MidiFunctions;
 
@@ -137,7 +165,7 @@ int MUSIC_Init
 		SoundCard = ASS_NoSound;
 #endif
 	}
-	
+
 	if (SoundCard < 0 || SoundCard >= ASS_NumSoundCards) {
 		MUSIC_ErrorCode = MUSIC_InvalidCard;
 		return MUSIC_Error;
@@ -217,8 +245,33 @@ void MUSIC_SetVolume
    )
 
    {
+
+   
+   #ifdef USE_SDLMIXER
+   volume = volume >> 1;
+   
+   volume = max( 0, volume );
+   volume = min( volume, 128 );
+   
+   volume_m = volume;
+
+ 	 //Mix_VolumeMusic(volume);
+   #elif USE_WILDMIDI
+   volume = volume >> 1;
+
+   volume = max( 0, volume );
+   volume = min( volume, 127 );
+
+   if (WILD_Initialized)
+  	 WildMidi_MasterVolume(volume);
+
+
+	 #else
+
    volume = max( 0, volume );
    volume = min( volume, 255 );
+	#endif
+   
 
    /*if ( MUSIC_SoundDevice != -1 )
       {
@@ -351,14 +404,79 @@ void MUSIC_Pause
    Stops playback of current song.
 ---------------------------------------------------------------------*/
 
+#ifdef USE_SDLMIXER
+void MIDI_StopSong
+( 
+void
+)
+{
+	p_music = 0;
+	Mix_HaltMusic();
+
+	if (music) {
+		Mix_HaltMusic();
+		Mix_FreeMusic(music);
+		music   = NULL;
+	}
+
+	if (song_rw)
+		{
+		  free(song_rw);
+		  song_rw = NULL;
+		}
+}
+#endif
+
+#ifdef USE_WILDMIDI
+int WILDLOCK = 0;
+#endif
+
+void CALLBACK_DONONE(char **ptr, unsigned int *length)
+{
+#ifdef USE_WILDMIDI
+
+	if (midi_ptr)
+		{
+			while (WILDLOCK)
+				usleep(5000);
+
+			wm_info  = WildMidi_GetInfo( midi_ptr );
+
+			*ptr = MUS_Buffer;
+			*length = WildMidi_GetOutput (midi_ptr, MUS_Buffer, WMSamples);
+
+			if (*length == 0)
+				{
+					unsigned long int sample_seeker = wm_info->approx_total_samples-wm_info->current_sample;
+					WildMidi_FastSeek (midi_ptr, &sample_seeker);
+				}
+		}
+#endif
+}
+
 int MUSIC_StopSong
    (
    void
    )
 
    {
-   MUSIC_StopFade();
+#ifdef USE_WILDMIDI
+	WILDLOCK = 1;
+	 if (MUS_Handle)
+		 {
+		 MV_Kill(MUS_Handle);
+		 MUS_Handle = 0;
+		 }
+
+  if (midi_ptr)
+ 	 {
+ 	 WildMidi_Close (midi_ptr);
+ 	 midi_ptr = NULL;
+ 	 }
+  WILDLOCK = 0;
+#else
    MIDI_StopSong();
+#endif
    MUSIC_SetErrorCode( MUSIC_Ok );
    return( MUSIC_Ok );
    }
@@ -381,13 +499,94 @@ int MUSIC_PlaySong
    int status;
 
    MIDI_StopSong();
+#ifdef USE_SDLMIXER
+   WILDLOCK = 1;
+   song_rw = malloc(length);
+   song_rw = memcpy(song_rw, song, length);
+   
+   SDL_RWops *rw = SDL_RWFromMem(song_rw ,length);
+   if (rw == NULL)
+   {
+	   initprintf( "Error allocating RWops: %s\n", SDL_GetError() );  
+   }
+   initprintf("Allocated file into RAM, trying to load it...\n");
+   music = Mix_LoadMUS_RW(rw);
+   if (music==NULL)
+   {
+	   initprintf( "Error opening song: %s\n", Mix_GetError() );      
+	   initprintf( "Error opening song: %s\n", SDL_GetError() );      
+	   MUSIC_SetErrorCode( MUSIC_MidiError );
+	   return( MUSIC_Warning );
+   }
+   Mix_VolumeMusic(volume_m);
+   
+   if(Mix_PlayMusic(music, -loopflag)==-1) {
+       printf("ERR MUS: %s\n", Mix_GetError());
+   }
+   p_music = 1;
+   //SDL_FreeRW(rw);
+#elif USE_WILDMIDI
+   if (memcmp(song, "MThd", 4))
+  	 return (MUSIC_Warning);
+
+   if (!WILD_Initialized)
+  	 if (WildMidi_Init ("/etc/timidity.cfg", 44100, NULL) == -1)
+  		 {
+  			 initprintf("Failed initting WildMidi.\n");
+  			 MUSIC_SetErrorCode(MUSIC_MidiError);
+
+  			 return (MUSIC_Warning);
+  		 }
+  	 else
+  		 WILD_Initialized = 1;
+
+	 if (!MUS_Buffer)
+		 MUS_Buffer = malloc(WMSamples * WMSampleSize);
+
+	 if (MUS_Handle)
+		 {
+		 MV_Kill(MUS_Handle);
+		 MUS_Handle = 0;
+		 }
+
+   if (midi_ptr)
+  	 {
+  	 WildMidi_Close (midi_ptr);
+  	 midi_ptr = NULL;
+  	 }
+
+   midi_ptr = WildMidi_OpenBuffer( song, length );
+   if (!midi_ptr)
+		 {
+			 initprintf("Failed opening buffer for stream.\n");
+			 MUSIC_SetErrorCode(MUSIC_MidiError);
+
+			 return (MUSIC_Warning);
+		 }
+   wm_info  = WildMidi_GetInfo( midi_ptr );
+   if (!wm_info)
+		 {
+			 initprintf("Failed getting midi file info.\n");
+			 MUSIC_SetErrorCode(MUSIC_MidiError);
+
+			 return (MUSIC_Warning);
+		 }
+
+   WILDLOCK = 0;
+
+   //SoundDriver_PCM_BeginPlayback(MUS_Buffer, output_result,	1, CALLBACK_DONONE );
+   MUS_Handle = MV_StartDemandFeedPlayback16( CALLBACK_DONONE,
+            44100, 0, 255, 255, 255,
+            0x7fffffffl, 1 );
+
+#else
    status = MIDI_PlaySong( song, loopflag );
    if ( status != MIDI_Ok )
       {
       MUSIC_SetErrorCode( MUSIC_MidiError );
       return( MUSIC_Warning );
       }
-
+#endif
    return( MUSIC_Ok );
    }
 

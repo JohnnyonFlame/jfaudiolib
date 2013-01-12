@@ -819,6 +819,41 @@ static playbackstatus MV_GetNextDemandFeedBlock
    return( NoMoreData );
    }
 
+static playbackstatus MV_GetNextDemandFeedBlock16
+   (
+   VoiceNode *voice
+   )
+
+   {
+   if ( voice->BlockLength > 0 )
+      {
+      voice->position    -= voice->length;
+      voice->sound       += voice->length >> 16;
+      voice->length       = min( voice->BlockLength, 0x8000 );
+      voice->BlockLength -= voice->length;
+      voice->length     <<= 16;
+
+      return( KeepPlaying );
+      }
+
+   if ( voice->DemandFeed == NULL )
+      {
+      return( NoMoreData );
+      }
+
+   voice->position     = 0;
+   ( voice->DemandFeed )( &voice->sound, &voice->BlockLength );
+   voice->length       = min( voice->BlockLength, 0x8000 );
+   voice->BlockLength -= voice->length;
+   voice->length     <<= 14;
+
+   if ( ( voice->length > 0 ) && ( voice->sound != NULL ) )
+      {
+      return( KeepPlaying );
+      }
+   return( NoMoreData );
+   }
+
 
 /*---------------------------------------------------------------------
    Function: MV_GetNextRawBlock
@@ -2072,6 +2107,62 @@ int MV_StartDemandFeedPlayback
    voice->bits        = 8;
 	voice->channels    = 1;
    voice->GetSound    = MV_GetNextDemandFeedBlock;
+   voice->NextBlock   = NULL;
+   voice->DemandFeed  = function;
+   voice->LoopStart   = NULL;
+   voice->LoopCount   = 0;
+   voice->BlockLength = 0;
+   voice->position    = 0;
+   voice->sound       = NULL;
+   voice->length      = 0;
+   voice->BlockLength = 0;
+   voice->Playing     = TRUE;
+   voice->Paused      = FALSE;
+   voice->next        = NULL;
+   voice->prev        = NULL;
+   voice->priority    = priority;
+   voice->callbackval = callbackval;
+
+   MV_SetVoicePitch( voice, rate, pitchoffset );
+   MV_SetVoiceVolume( voice, vol, left, right );
+   MV_PlayVoice( voice );
+
+   return( voice->handle );
+   }
+
+int MV_StartDemandFeedPlayback16
+   (
+   void ( *function )( char **ptr, unsigned int *length ),
+   int rate,
+   int pitchoffset,
+   int vol,
+   int left,
+   int right,
+   int priority,
+   unsigned int callbackval
+   )
+
+   {
+   VoiceNode *voice;
+
+   if ( !MV_Installed )
+      {
+      MV_SetErrorCode( MV_NotInstalled );
+      return( MV_Error );
+      }
+
+   // Request a voice from the voice pool
+   voice = MV_AllocVoice( priority );
+   if ( voice == NULL )
+      {
+      MV_SetErrorCode( MV_NoVoices );
+      return( MV_Error );
+      }
+
+   voice->wavetype    = DemandFeed;
+   voice->bits        = 16;
+	voice->channels    = 2;
+   voice->GetSound    = MV_GetNextDemandFeedBlock16;
    voice->NextBlock   = NULL;
    voice->DemandFeed  = function;
    voice->LoopStart   = NULL;
